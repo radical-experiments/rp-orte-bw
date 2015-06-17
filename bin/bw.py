@@ -3,75 +3,69 @@
 __copyright__ = "Copyright 2015, http://radical.rutgers.edu"
 __license__   = "MIT"
 
-agent_config = {
-    "number_of_workers": {
-        "StageinWorker"   : 1,
-        "ExecWorker"      : 8,
-        "StageoutWorker"  : 1,
-        "UpdateWorker"    : 1
-    },
-    "blowup_factor": {
-        "Agent"           : 1,
-        "stagein_queue"   : 1,
-        "StageinWorker"   : 1,
-        "schedule_queue"  : 1,
-        "Scheduler"       : 1,
-        "execution_queue" : 1,
-        "ExecWorker"      : 1,
-        "watch_queue"     : 1,
-        "ExecWatcher"     : 1,
-        "stageout_queue"  : 1,
-        "StageoutWorker"  : 1,
-        "update_queue"    : 1,
-        "UpdateWorker"    : 1
-    },
-    "drop_clones": {
-        "Agent"           : 1,
-        "stagein_queue"   : 1,
-        "StageinWorker"   : 1,
-        "schedule_queue"  : 1,
-        "Scheduler"       : 1,
-        "execution_queue" : 1,
-        "ExecWorker"      : 1,
-        "watch_queue"     : 1,
-        "ExecWatcher"     : 1,
-        "stageout_queue"  : 1,
-        "StageoutWorker"  : 1,
-        "update_queue"    : 1,
-        "UpdateWorker"    : 1
-    }
-}
-
 import sys
 import time
 import os
 import radical.pilot as rp
+import random
 
-EXPERIMENT = 'ORTE'
-#EXPERIMENT = 'APRUN'
-#EXPERIMENT = 'CCM'
-#EXPERIMENT = 'LOCAL'
+# "Global" configs
 
-NODES = 10
-RUNTIME = 30
-SLEEP = 0
-MULTIPLIER = 5 # In the time dimension
-CU_CORES = 1 # Can only be a multiple of 32/single nodes for APRUN
+# agent_config = {
+#     "number_of_workers": {
+#         "StageinWorker"   : 1,
+#         "ExecWorker"      : 1,
+#         "StageoutWorker"  : 1,
+#         "UpdateWorker"    : 1
+#     },
+#     "blowup_factor": {
+#         "Agent"           : 1,
+#         "stagein_queue"   : 1,
+#         "StageinWorker"   : 1,
+#         "schedule_queue"  : 1,
+#         "Scheduler"       : 1,
+#         "execution_queue" : 1,
+#         "ExecWorker"      : 1,
+#         "watch_queue"     : 1,
+#         "ExecWatcher"     : 1,
+#         "stageout_queue"  : 1,
+#         "StageoutWorker"  : 1,
+#         "update_queue"    : 1,
+#         "UpdateWorker"    : 1
+#     },
+#     "drop_clones": {
+#         "Agent"           : 1,
+#         "stagein_queue"   : 1,
+#         "StageinWorker"   : 1,
+#         "schedule_queue"  : 1,
+#         "Scheduler"       : 1,
+#         "execution_queue" : 1,
+#         "ExecWorker"      : 1,
+#         "watch_queue"     : 1,
+#         "ExecWatcher"     : 1,
+#         "stageout_queue"  : 1,
+#         "StageoutWorker"  : 1,
+#         "update_queue"    : 1,
+#         "UpdateWorker"    : 1
+#     }
+# }
 
-PROFILING=True
-
-RP_VERSION = "debug" # debug, installed, local
+# Whether and how to install new RP remotely
+RP_VERSION = "local" # debug, installed, local
 VIRTENV_MODE = "create" # create, use, update
 
-#
-# XE nodes have 2 "Interlagos" Processors with 8 "Bulldozer" cores each.
-# Every "Bulldozer" core consists of 2 schedualable integer cores.
-# XE nodes therefore have a PPN=32.
-#
-# Depending on the type of application,
-# one generally chooses to have 16 or 32 instances per node.
+# Schedule CUs directly to a Pilot, assumes single Pilot
+SCHEDULER = rp.SCHED_DIRECT_SUBMISSION
 
-config = {
+resource_config = {
+    #
+    # XE nodes have 2 "Interlagos" Processors with 8 "Bulldozer" cores each.
+    # Every "Bulldozer" core consists of 2 schedualable integer cores.
+    # XE nodes therefore have a PPN=32.
+    #
+    # Depending on the type of application,
+    # one generally chooses to have 16 or 32 instances per node.
+
     'LOCAL': {
         'RESOURCE': 'local.localhost',
         'LAUNCH_METHOD': 'FORK',
@@ -116,26 +110,7 @@ config = {
     }
 }
 
-# The number of cores to acquire on the resource
-PILOT_CORES = config[EXPERIMENT]['PPN'] * NODES
 
-# Launch enough cores to consume all cores of the pilot for the multiplier duration.
-#UNITS = (PILOT_CORES/CU_CORES) * MULTIPLIER
-# or a fixed number
-UNITS = 500
-
-# Schedule CUs directly to a Pilot, assumes single Pilot
-SCHED = rp.SCHED_DIRECT_SUBMISSION
-
-# Profiling
-if PROFILING:
-    #os.putenv('RADICAL_PILOT_PROFILE','TRUE')
-    os.environ['RADICAL_PILOT_PROFILE'] = 'TRUE'
-
-#
-# Copy AGENT config
-#
-# .radical/pilot/configs
 
 #------------------------------------------------------------------------------
 #
@@ -175,40 +150,52 @@ def unit_state_cb (unit, state):
 #------------------------------------------------------------------------------
 #
 def wait_queue_size_cb(umgr, wait_queue_size):
-
     print "[Callback]: wait_queue_size: %s." % wait_queue_size
+#------------------------------------------------------------------------------
 
+#--------------------------------------------------------------------------
+#
+def insert_exp_details(session, id):
+
+    if session is None:
+        raise Exception("No active session.")
+
+    result = session._dbs._s.update(
+        {"_id": session._uid},
+        {"$set" : {"experiment": {'id': id}}}
+    )
+
+    # return the object id as a string
+    return str(result)
 
 #------------------------------------------------------------------------------
 #
-if __name__ == "__main__":
+def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu_count, profiling, agent_config):
 
-    # we can optionally pass session name to RP
-    if len(sys.argv) > 1:
-        session_name = sys.argv[1]
-    else:
-        session_name = None
+    # Profiling
+    if profiling:
+        os.environ['RADICAL_PILOT_PROFILE'] = 'TRUE'
 
     # Create a new session. No need to try/except this: if session creation
     # fails, there is not much we can do anyways...
-    session = rp.Session(name=session_name)
+    session = rp.Session()
     print "session id: %s" % session.uid
 
-    cfg = session.get_resource_config(config[EXPERIMENT]['RESOURCE'])
+    cfg = session.get_resource_config(resource_config[backend]['RESOURCE'])
 
     # create a new config based on the old one, and set a different queue
-    new_cfg = rp.ResourceConfig(config[EXPERIMENT]['RESOURCE'], cfg)
+    new_cfg = rp.ResourceConfig(resource_config[backend]['RESOURCE'], cfg)
 
     # Insert pre_execs at the beginning in reverse order
-    if 'PRE_EXEC_PREPEND' in config[EXPERIMENT]:
-        for entry in config[EXPERIMENT]['PRE_EXEC_PREPEND'][::-1]:
+    if 'PRE_EXEC_PREPEND' in resource_config[backend]:
+        for entry in resource_config[backend]['PRE_EXEC_PREPEND'][::-1]:
             new_cfg.pre_bootstrap.insert(0, entry)
 
     # Change launch method
-    new_cfg.task_launch_method = config[EXPERIMENT]['LAUNCH_METHOD']
+    new_cfg.task_launch_method = resource_config[backend]['LAUNCH_METHOD']
 
     # Change method to spawn tasks
-    new_cfg.agent_spawner = config[EXPERIMENT]['AGENT_SPAWNER']
+    new_cfg.agent_spawner = resource_config[backend]['AGENT_SPAWNER']
 
     # Don't install a new version of RP
     new_cfg.rp_version = RP_VERSION
@@ -229,31 +216,28 @@ if __name__ == "__main__":
         pmgr.register_callback(pilot_state_cb)
 
         pdesc = rp.ComputePilotDescription()
-        pdesc.resource = config[EXPERIMENT]['RESOURCE']
-        pdesc.cores = PILOT_CORES
-        if 'QUEUE' in config[EXPERIMENT]:
-            pdesc.queue = config[EXPERIMENT]['QUEUE']
-        pdesc.runtime = RUNTIME
+        pdesc.resource = resource_config[backend]['RESOURCE']
+        pdesc.cores = pilot_cores
+        if 'QUEUE' in resource_config[backend]:
+            pdesc.queue = resource_config[backend]['QUEUE']
+        pdesc.runtime = pilot_runtime
         pdesc.cleanup = False
 
         pdesc._config = agent_config
 
         pilot = pmgr.submit_pilots(pdesc)
 
-        umgr = rp.UnitManager(session=session, scheduler=SCHED)
-        umgr.register_callback(unit_state_cb,      rp.UNIT_STATE)
+        umgr = rp.UnitManager(session=session, scheduler=SCHEDULER)
+        umgr.register_callback(unit_state_cb, rp.UNIT_STATE)
         umgr.register_callback(wait_queue_size_cb, rp.WAIT_QUEUE_SIZE)
         umgr.add_pilots(pilot)
 
-        # Don't want any CUs
-        #time.sleep(600)
-
         cuds = list()
-        for unit_count in range(0, UNITS):
+        for unit_count in range(0, cu_count):
             cud = rp.ComputeUnitDescription()
             cud.executable     = "/bin/bash"
-            cud.arguments      = ["-c", "date && sleep %d && date" % SLEEP]
-            cud.cores          = CU_CORES
+            cud.arguments      = ["-c", "date && sleep %d && date" % cu_runtime]
+            cud.cores          = cu_cores
             cuds.append(cud)
 
         units = umgr.submit_units(cuds)
@@ -262,8 +246,6 @@ if __name__ == "__main__":
         for cu in units:
             print "* Task %s state %s, exit code: %s, started: %s, finished: %s" \
                 % (cu.uid, cu.state, cu.exit_code, cu.start_time, cu.stop_time)
-
-      # os.system ("radicalpilot-stats -m stat,plot -s %s > %s.stat" % (session.uid, session_name))
 
     except Exception as e:
         # Something unexpected happened in the pilot code above
@@ -278,11 +260,229 @@ if __name__ == "__main__":
         print "need to exit now: %s" % e
 
     finally:
-
         # Give the agent chance to write all.
         time.sleep(25)
+
+        print "inserting meta data into session"
+        insert_exp_details(session, 42)
 
         print "closing session"
         session.close(cleanup=False, terminate=True)
 
+        return session._uid
+#
+#------------------------------------------------------------------------------
+
+
+
+#------------------------------------------------------------------------------
+#
+# Variable CU duration (0, 1, 10, 30, 60, 120)
+# Fixed backend (ORTE)
+# Fixed CU count (1024)
+# Fixed CU cores (1)
+# CU = /bin/sleep
+# Fixed Pilot cores (256)
+#
+# Goal: investigate the relative overhead of ORTE in relation to the runtime of the CU
+#
+def exp1(repeat):
+
+    agent_config = {}
+    agent_config['number_of_workers'] = {}
+    agent_config['number_of_workers']['ExecWorker'] = 1
+
+    sessions = {}
+
+    # Enable/Disable profiling
+    profiling=True
+
+    backend = 'ORTE'
+
+    cu_cores = 1
+
+    # The number of cores to acquire on the resource
+    nodes = 8
+    pilot_cores = int(resource_config[backend]['PPN']) * nodes
+
+    # Maximum walltime for experiment
+    pilot_runtime = 30 # should we guesstimate this?
+
+    cu_count = 512
+
+    for iter in range(repeat):
+
+        for cu_sleep in random.shuffle([0, 1, 10, 30, 60, 120, 300, 600]):
+
+            sid = run_experiment(
+                backend=backend,
+                pilot_cores=pilot_cores,
+                pilot_runtime=pilot_runtime,
+                cu_runtime=cu_sleep,
+                cu_cores=cu_cores,
+                cu_count=cu_count,
+                profiling=profiling,
+                agent_config=agent_config
+            )
+
+            sessions[sid] = {
+                'backend': backend,
+                'pilot_cores': pilot_cores,
+                'pilot_runtime': pilot_runtime,
+                'cu_runtime': cu_sleep,
+                'cu_cores': cu_cores,
+                'cu_count': cu_count,
+                'profiling': profiling,
+                'iteration': iter,
+                'number_of_workers': agent_config['number_of_workers']['ExecWorker']
+        }
+
+    return sessions
+#
 #-------------------------------------------------------------------------------
+
+
+#------------------------------------------------------------------------------
+#
+# Fixed CU duration (60)
+# Fixed backend (ORTE)
+# Variable CU count (4-1024)
+# Variable CU cores (1-256)
+# CU = /bin/sleep
+# Fixed Pilot cores (256)
+#
+# Goal: Investigate the relative overhead of small tasks compared to larger tasks
+#
+def exp2(repeat):
+
+    agent_config = {}
+    agent_config['number_of_workers'] = {}
+    agent_config['number_of_workers']['ExecWorker'] = 1
+
+    sessions = {}
+
+    # Enable/Disable profiling
+    profiling=True
+
+    backend = 'ORTE'
+
+    cu_sleep = 60
+
+    # The number of cores to acquire on the resource
+    nodes = 8
+    pilot_cores = int(resource_config[backend]['PPN']) * nodes
+
+    # Maximum walltime for experiment
+    pilot_runtime = 30 # should we guesstimate this?
+
+    for iter in range(repeat):
+
+        for cu_cores in random.shuffle([1, 2, 4, 8, 16, 32, 64, 128, 256]):
+
+            # keep core consumption equal (4 generations)
+            cu_count = (4 * pilot_cores) / cu_cores
+
+            sid = run_experiment(
+                backend=backend,
+                pilot_cores=pilot_cores,
+                pilot_runtime=pilot_runtime,
+                cu_runtime=cu_sleep,
+                cu_cores=cu_cores,
+                cu_count=cu_count,
+                profiling=profiling,
+                agent_config=agent_config
+            )
+
+            sessions[sid] = {
+                'backend': backend,
+                'pilot_cores': pilot_cores,
+                'pilot_runtime': pilot_runtime,
+                'cu_runtime': cu_sleep,
+                'cu_cores': cu_cores,
+                'cu_count': cu_count,
+                'profiling': profiling,
+                'iteration': iter,
+                'number_of_workers': agent_config['number_of_workers']['ExecWorker']
+            }
+
+    return sessions
+#
+#-------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+#
+# Fixed CU duration (0s)
+# Fixed backend (ORTE)
+# Fixed CU count (500)
+# Fixed CU cores (1)
+# CU = /bin/sleep
+# Fixed Pilot cores (256)
+# Variable number of exec workers (1-8)
+#
+# Goal: Investigate the effect of number of exec workers
+#
+def exp3(repeat):
+
+    agent_config = {}
+    agent_config['number_of_workers'] = {}
+
+    sessions = {}
+
+    # Enable/Disable profiling
+    profiling=True
+
+    backend = 'ORTE'
+
+    cu_cores = 1
+
+    # The number of cores to acquire on the resource
+    nodes = 8
+    pilot_cores = int(resource_config[backend]['PPN']) * nodes
+
+    # Maximum walltime for experiment
+    pilot_runtime = 30 # should we guesstimate this?
+
+    cu_count = 512
+    cu_sleep = 0
+
+    for iter in range(repeat):
+
+        workers_range = range(1,9)
+        for workers in random.shuffle(workers_range):
+            agent_config['number_of_workers']['ExecWorker'] = workers
+
+            sid = run_experiment(
+                backend=backend,
+                pilot_cores=pilot_cores,
+                pilot_runtime=pilot_runtime,
+                cu_runtime=cu_sleep,
+                cu_cores=cu_cores,
+                cu_count=cu_count,
+                profiling=profiling,
+                agent_config=agent_config
+            )
+
+            sessions[sid] = {
+                'backend': backend,
+                'pilot_cores': pilot_cores,
+                'pilot_runtime': pilot_runtime,
+                'cu_runtime': cu_sleep,
+                'cu_cores': cu_cores,
+                'cu_count': cu_count,
+                'profiling': profiling,
+                'iteration': iter,
+                'number_of_workers': agent_config['number_of_workers']['ExecWorker']
+            }
+
+    return sessions
+#
+#-------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+#
+if __name__ == "__main__":
+
+    #sessions = exp1(3)
+    #sessions = exp2(3)
+    sessions = exp3(3)
+    print sessions
