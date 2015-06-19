@@ -283,7 +283,7 @@ def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu
 
     finally:
         # Give the agent chance to write all.
-        time.sleep(25)
+        time.sleep(5)
 
         print "inserting meta data into session"
         insert_exp_details(session, 42)
@@ -519,6 +519,9 @@ def exp3(repeat):
 #
 def exp4(repeat):
 
+    f = open('exp4.txt', 'a')
+    f.write('%s\n' % time.ctime())
+
     agent_config = {}
     agent_config['number_of_workers'] = {}
     agent_config['number_of_workers']['ExecWorker'] = 1
@@ -583,7 +586,9 @@ def exp4(repeat):
                     'iteration': iter,
                     'number_of_workers': agent_config['number_of_workers']['ExecWorker']
                 }
+                f.write('%s - %s\n' % (sid, str(sessions[sid])))
 
+    f.close()
     return sessions
 #
 #-------------------------------------------------------------------------------
