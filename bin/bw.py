@@ -99,13 +99,29 @@ resource_config = {
         'RESOURCE': 'ncsa.bw',
         'LAUNCH_METHOD': "ORTE",
         'AGENT_SPAWNER': 'SHELL',
+    #nodes_var = [1]
         #'AGENT_SPAWNER': 'POPEN',
-        'QUEUE': 'debug', # Maximum 30 minutes
+        #'QUEUE': 'debug', # Maximum 30 minutes
         'PPN': 32,
         'PRE_EXEC_PREPEND': [
             'module use --append /u/sciteam/marksant/privatemodules',
             'module load use.own',
             'module load openmpi/git'
+        ]
+    },
+    'TITAN': {
+        'RESOURCE': 'ornl.titan',
+        'SCHEMA': 'local',
+        'LAUNCH_METHOD': "ORTE",
+        'AGENT_SPAWNER': 'SHELL',
+        #'AGENT_SPAWNER': 'POPEN',
+        'QUEUE': 'debug', # Maximum 30 minutes
+        'PROJECT': 'csc168',
+        'PPN': 32,
+        'PRE_EXEC_PREPEND': [
+            #'module use --append /u/sciteam/marksant/privatemodules',
+            #'module load use.own',
+            #'module load openmpi/git'
         ]
     }
 }
@@ -180,6 +196,8 @@ def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu
     # fails, there is not much we can do anyways...
     session = rp.Session()
     print "session id: %s" % session.uid
+    print "Experiment - Backend:%s, PilotCores:%d, PilotRuntime:%d, CURuntime:%d, CUCores:%d, CUCount:%d" % \
+        (backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu_count)
 
     cfg = session.get_resource_config(resource_config[backend]['RESOURCE'])
 
@@ -220,6 +238,10 @@ def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu
         pdesc.cores = pilot_cores
         if 'QUEUE' in resource_config[backend]:
             pdesc.queue = resource_config[backend]['QUEUE']
+        if 'SCHEMA' in resource_config[backend]:
+            pdesc.access_schema = resource_config[backend]['SCHEMA']
+        if 'PROJECT' in resource_config[backend]:
+            pdesc.project = resource_config[backend]['PROJECT']
         pdesc.runtime = pilot_runtime
         pdesc.cleanup = False
 
@@ -312,7 +334,9 @@ def exp1(repeat):
 
     for iter in range(repeat):
 
-        for cu_sleep in random.shuffle([0, 1, 10, 30, 60, 120, 300, 600]):
+        runtimes = [0, 1, 10, 30, 60, 120, 300, 600]
+        random.shuffle(runtimes)
+        for cu_sleep in runtimes:
 
             sid = run_experiment(
                 backend=backend,
@@ -377,7 +401,9 @@ def exp2(repeat):
 
     for iter in range(repeat):
 
-        for cu_cores in random.shuffle([1, 2, 4, 8, 16, 32, 64, 128, 256]):
+        cu_cores_var = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+        random.shuffle(cu_cores_var)
+        for cu_cores in cu_cores_var:
 
             # keep core consumption equal (4 generations)
             cu_count = (4 * pilot_cores) / cu_cores
@@ -448,7 +474,8 @@ def exp3(repeat):
     for iter in range(repeat):
 
         workers_range = range(1,9)
-        for workers in random.shuffle(workers_range):
+        random.shuffle(workers_range)
+        for workers in workers_range:
             agent_config['number_of_workers']['ExecWorker'] = workers
 
             sid = run_experiment(
@@ -480,9 +507,93 @@ def exp3(repeat):
 
 #------------------------------------------------------------------------------
 #
+# Fixed CU duration (60)
+# Fixed backend (ORTE)
+# Variable CU count (5 generations)
+# Variable CU cores (1, 32)
+# CU = /bin/sleep
+# Variable Pilot cores (256, 512, 1024, 2048, 4096, 8192)
+#
+# Goals: A) Investigate the scale of things. 
+#        B) Investigate the effect of 1 per node vs 32 per node
+#
+def exp4(repeat):
+
+    agent_config = {}
+    agent_config['number_of_workers'] = {}
+    agent_config['number_of_workers']['ExecWorker'] = 1
+
+    sessions = {}
+
+    # Enable/Disable profiling
+    profiling=True
+
+    backend = 'ORTE'
+
+    cu_sleep = 60
+
+    generations = 5
+
+    # The number of cores to acquire on the resource
+    nodes_var = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+    random.shuffle(nodes_var)
+
+    # Single core and multicore
+    cu_cores_var = [1, 32]
+    random.shuffle(cu_cores_var)
+	
+    # Maximum walltime for experiment
+    pilot_runtime = 30 # should we guesstimate this?
+
+    for iter in range(repeat):
+
+        for nodes in nodes_var:
+            
+            pilot_cores = int(resource_config[backend]['PPN']) * nodes
+
+            for cu_cores in cu_cores_var:
+                
+                # Don't need full node experiments for low number of nodes,
+                # as we have no equivalent in single core experiments
+                if nodes < cu_cores:
+                    continue
+
+                # keep core consumption equal (4 generations)
+                cu_count = (generations * pilot_cores) / cu_cores
+
+                sid = run_experiment(
+                    backend=backend,
+                    pilot_cores=pilot_cores,
+                    pilot_runtime=pilot_runtime,
+                    cu_runtime=cu_sleep,
+                    cu_cores=cu_cores,
+                    cu_count=cu_count,
+                    profiling=profiling,
+                    agent_config=agent_config
+                )
+
+                sessions[sid] = {
+                    'backend': backend,
+                    'pilot_cores': pilot_cores,
+                    'pilot_runtime': pilot_runtime,
+                    'cu_runtime': cu_sleep,
+                    'cu_cores': cu_cores,
+                    'cu_count': cu_count,
+                    'profiling': profiling,
+                    'iteration': iter,
+                    'number_of_workers': agent_config['number_of_workers']['ExecWorker']
+                }
+
+    return sessions
+#
+#-------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+#
 if __name__ == "__main__":
 
     #sessions = exp1(3)
     #sessions = exp2(3)
-    sessions = exp3(3)
+    #sessions = exp3(3)
+    sessions = exp4(1)
     print sessions
