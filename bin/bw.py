@@ -467,7 +467,8 @@ def exp3(repeat):
     for iter in range(repeat):
 
         workers_range = range(1,9)
-        for workers in random.shuffle(workers_range):
+        random.shuffle(workers_range)
+        for workers in workers_range:
             agent_config['number_of_workers']['ExecWorker'] = workers
 
             sid = run_experiment(
