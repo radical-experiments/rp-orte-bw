@@ -107,6 +107,21 @@ resource_config = {
             'module load use.own',
             'module load openmpi/git'
         ]
+    },
+    'TITAN': {
+        'RESOURCE': 'ornl.titan',
+        'SCHEMA': 'local',
+        'LAUNCH_METHOD': "ORTE",
+        'AGENT_SPAWNER': 'SHELL',
+        #'AGENT_SPAWNER': 'POPEN',
+        'QUEUE': 'debug', # Maximum 30 minutes
+        'PROJECT': 'csc168',
+        'PPN': 32,
+        'PRE_EXEC_PREPEND': [
+            #'module use --append /u/sciteam/marksant/privatemodules',
+            #'module load use.own',
+            #'module load openmpi/git'
+        ]
     }
 }
 
