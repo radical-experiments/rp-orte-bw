@@ -117,7 +117,7 @@ resource_config = {
         #'AGENT_SPAWNER': 'POPEN',
         'QUEUE': 'debug', # Maximum 30 minutes
         'PROJECT': 'csc168',
-        'PPN': 32,
+        'PPN': 16,
         'PRE_EXEC_PREPEND': [
             #'module use --append /u/sciteam/marksant/privatemodules',
             #'module load use.own',
