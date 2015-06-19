@@ -235,6 +235,10 @@ def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu
         pdesc.cores = pilot_cores
         if 'QUEUE' in resource_config[backend]:
             pdesc.queue = resource_config[backend]['QUEUE']
+        if 'SCHEMA' in resource_config[backend]:
+            pdesc.access_schema = resource_config[backend]['SCHEMA']
+        if 'PROJECT' in resource_config[backend]:
+            pdesc.project = resource_config[backend]['PROJECT']
         pdesc.runtime = pilot_runtime
         pdesc.cleanup = False
 
