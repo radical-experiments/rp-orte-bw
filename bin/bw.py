@@ -587,6 +587,7 @@ def exp4(repeat):
                     'number_of_workers': agent_config['number_of_workers']['ExecWorker']
                 }
                 f.write('%s - %s\n' % (sid, str(sessions[sid])))
+                f.flush()
 
     f.close()
     return sessions
