@@ -334,7 +334,9 @@ def exp1(repeat):
 
     for iter in range(repeat):
 
-        for cu_sleep in random.shuffle([0, 1, 10, 30, 60, 120, 300, 600]):
+        runtimes = [0, 1, 10, 30, 60, 120, 300, 600]
+        random.shuffle(runtimes)
+        for cu_sleep in runtimes:
 
             sid = run_experiment(
                 backend=backend,
@@ -399,7 +401,9 @@ def exp2(repeat):
 
     for iter in range(repeat):
 
-        for cu_cores in random.shuffle([1, 2, 4, 8, 16, 32, 64, 128, 256]):
+        cu_cores_var = [1, 2, 4, 8, 16, 32, 64, 128, 256]
+        random.shuffle(cu_cores_var)
+        for cu_cores in cu_cores_var:
 
             # keep core consumption equal (4 generations)
             cu_count = (4 * pilot_cores) / cu_cores
