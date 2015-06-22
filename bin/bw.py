@@ -124,6 +124,21 @@ resource_config = {
             #'module load openmpi/git'
         ]
     }
+    'STAMPEDE': {
+        'RESOURCE': 'xsede.stampede',
+        #'SCHEMA': 'local',
+        #'LAUNCH_METHOD': "ORTE",
+        #'AGENT_SPAWNER': 'SHELL',
+        #'AGENT_SPAWNER': 'POPEN',
+        #'QUEUE': 'debug', # Maximum 30 minutes
+        'PROJECT': 'TG-MCB090174',
+        'PPN': 16,
+        'PRE_EXEC_PREPEND': [
+            #'module use --append /u/sciteam/marksant/privatemodules',
+            #'module load use.own',
+            #'module load openmpi/git'
+        ]
+    }
 }
 
 
