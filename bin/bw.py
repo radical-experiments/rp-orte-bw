@@ -225,10 +225,12 @@ def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu
             new_cfg.pre_bootstrap.insert(0, entry)
 
     # Change launch method
-    new_cfg.task_launch_method = resource_config[backend]['LAUNCH_METHOD']
+    if 'LAUNCH_METHOD' in resource_config[backend]:
+        new_cfg.task_launch_method = resource_config[backend]['LAUNCH_METHOD']
 
     # Change method to spawn tasks
-    new_cfg.agent_spawner = resource_config[backend]['AGENT_SPAWNER']
+    if 'AGENT_SPAWNER' in resource_config[backend]:
+        new_cfg.agent_spawner = resource_config[backend]['AGENT_SPAWNER']
 
     # Don't install a new version of RP
     new_cfg.rp_version = RP_VERSION
