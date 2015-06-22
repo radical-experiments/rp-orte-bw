@@ -275,7 +275,7 @@ def run_experiment(backend, pilot_cores, pilot_runtime, cu_runtime, cu_cores, cu
         for unit_count in range(0, cu_count):
             cud = rp.ComputeUnitDescription()
             cud.executable     = "/bin/bash"
-            cud.arguments      = ["-c", "date && sleep %d && date" % cu_runtime]
+            cud.arguments      = ["-c", "date && hostname -f && sleep %d && date" % cu_runtime]
             cud.cores          = cu_cores
             cuds.append(cud)
 
