@@ -123,7 +123,7 @@ resource_config = {
             #'module load use.own',
             #'module load openmpi/git'
         ]
-    }
+    },
     'STAMPEDE': {
         'RESOURCE': 'xsede.stampede',
         #'SCHEMA': 'local',
