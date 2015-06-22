@@ -115,7 +115,7 @@ resource_config = {
         'LAUNCH_METHOD': "ORTE",
         'AGENT_SPAWNER': 'SHELL',
         #'AGENT_SPAWNER': 'POPEN',
-        'QUEUE': 'debug', # Maximum 30 minutes
+        #'QUEUE': 'debug', # Maximum 60 minutes
         'PROJECT': 'csc168',
         'PPN': 16,
         'PRE_EXEC_PREPEND': [
@@ -472,7 +472,7 @@ def exp3(repeat):
     # Enable/Disable profiling
     profiling=True
 
-    backend = 'ORTE'
+    backend = 'TITAN'
 
     cu_cores = 1
 
@@ -559,18 +559,18 @@ def exp4(repeat):
     # Single core and multicore
     cu_cores_var = [1, 32]
     random.shuffle(cu_cores_var)
-	
+
     # Maximum walltime for experiment
     pilot_runtime = 30 # should we guesstimate this?
 
     for iter in range(repeat):
 
         for nodes in nodes_var:
-            
+
             pilot_cores = int(resource_config[backend]['PPN']) * nodes
 
             for cu_cores in cu_cores_var:
-                
+
                 # Don't need full node experiments for low number of nodes,
                 # as we have no equivalent in single core experiments
                 if nodes < cu_cores:
@@ -611,10 +611,104 @@ def exp4(repeat):
 
 #------------------------------------------------------------------------------
 #
+# Variable CU duration (60)
+# Fixed backend (ORTE)
+# Variable CU count (5 generations)
+# Variable CU cores (1, 32)
+# CU = /bin/sleep
+# Variable Pilot cores (256, 512, 1024, 2048, 4096, 8192)
+#
+# Goals: A) Investigate the scale of things. 
+#        B) Investigate the effect of 1 per node vs 32 per node
+#
+def exp5(repeat):
+
+    f = open('exp5.txt', 'a')
+    f.write('%s\n' % time.ctime())
+
+    agent_config = {}
+    agent_config['number_of_workers'] = {}
+    agent_config['number_of_workers']['ExecWorker'] = 8
+
+    sessions = {}
+
+    # Enable/Disable profiling
+    profiling=True
+
+    backend = 'TITAN'
+
+    generations = 1
+
+    # The number of cores to acquire on the resource
+    #nodes_var = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+    #nodes_var = [4, 8, 16, 32, 64, 128, 256, 512, 1024]
+    nodes_var = [512]
+    #random.shuffle(nodes_var)
+
+    # Single core and multicore
+    #cu_cores_var = [1, resource_config[backend]['PPN']]
+    #random.shuffle(cu_cores_var)
+    cu_cores_var = [1]
+	
+    # Maximum walltime for experiment
+    pilot_runtime = 480 # should we guesstimate this?
+
+    cu_sleep = 30000
+
+    for iter in range(repeat):
+
+        for nodes in nodes_var:
+            
+            pilot_cores = int(resource_config[backend]['PPN']) * nodes
+
+            for cu_cores in cu_cores_var:
+                
+                # Don't need full node experiments for low number of nodes,
+                # as we have no equivalent in single core experiments
+                if nodes < cu_cores:
+                    continue
+
+                # keep core consumption equal
+                cu_count = (generations * pilot_cores) / cu_cores
+
+                #cu_sleep = max(60, cu_count / 5)
+
+                sid = run_experiment(
+                    backend=backend,
+                    pilot_cores=pilot_cores,
+                    pilot_runtime=pilot_runtime,
+                    cu_runtime=cu_sleep,
+                    cu_cores=cu_cores,
+                    cu_count=cu_count,
+                    profiling=profiling,
+                    agent_config=agent_config
+                )
+
+                sessions[sid] = {
+                    'backend': backend,
+                    'pilot_cores': pilot_cores,
+                    'pilot_runtime': pilot_runtime,
+                    'cu_runtime': cu_sleep,
+                    'cu_cores': cu_cores,
+                    'cu_count': cu_count,
+                    'profiling': profiling,
+                    'iteration': iter,
+                    'number_of_workers': agent_config['number_of_workers']['ExecWorker']
+                }
+                f.write('%s - %s\n' % (sid, str(sessions[sid])))
+                f.flush()
+
+    f.close()
+    return sessions
+#
+#-------------------------------------------------------------------------------
+
+#------------------------------------------------------------------------------
+#
 if __name__ == "__main__":
 
     #sessions = exp1(3)
     #sessions = exp2(3)
     #sessions = exp3(3)
-    sessions = exp4(1)
+    sessions = exp5(1)
     print sessions
